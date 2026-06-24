@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Web App / PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#f3f4f6">
+    <link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%AA%E0%B8%A3%E0%B8%A3%E0%B8%97%E0%B8%B8%E0%B8%99%22%2C%22short_name%22%3A%22%E0%B8%88%E0%B8%B1%E0%B8%94%E0%B8%AA%E0%B8%A3%E0%B8%A3%E0%B8%97%E0%B8%B8%E0%B8%99%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f3f4f6%22%2C%22theme_color%22%3A%22%233b82f6%22%7D">
+    
+    <title>แก้ไขข้อมูล: การจัดสรรทุน (Mobile Web App)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Kanit', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .edit-panel { display: none; }
+        .edit-panel.active { display: block; }
+        /* Larger touch targets for mobile */
+        input[type="number"], input[type="text"] { 
+            width: 100%; 
+            min-height: 36px; /* Touch target size */
+            padding: 6px; 
+            border: 1px solid #d1d5db; 
+            border-radius: 6px; 
+            font-size: 16px; /* Prevents iOS auto-zoom */
+        }
+        input[type="number"] { text-align: right; }
+        input:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+        .download-btn { transition: opacity 0.2s; }
+        
+        [contenteditable="true"]:hover {
+            background-color: rgba(59, 130, 246, 0.05);
+            border-radius: 4px;
+            cursor: text;
+        }
+        [contenteditable="true"]:focus {
+            outline: 2px dashed #93c5fd;
+            background-color: white;
+        }
+
+        /* Hide scrollbar for cleaner mobile look */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Spinner */
+        .loader {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100 p-2 sm:p-4 md:p-6 lg:p-8 pb-20">
+
+    <!-- Toolbar -->
+    <div class="max-w-7xl mx-auto mb-4 md:mb-6 flex flex-col md:flex-row justify-between items-start md:items-center sticky top-0 bg-gray-100/95 backdrop-blur z-30 py-3 gap-3 md:gap-0 border-b md:border-none border-gray-200">
+        <div class="w-full flex justify-between items-center">
+            <h2 class="text-lg md:text-xl font-bold text-gray-800 flex flex-col md:flex-row md:items-center gap-1 md:gap-2">
+                <div>InfoApp <span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200 align-middle" id="connectionStatus">รอการเชื่อมต่อ...</span></div>
+                <span class="text-xs text-gray-400 font-normal hidden md:inline" id="saveStatus">การแก้ไขข้อความจะบันทึกอัตโนมัติ</span>
+            </h2>
+            <button onclick="toggleEditor()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 md:py-2 px-4 rounded-full shadow-lg flex items-center gap-2 text-sm transition-transform transform active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:h-5 md:w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                <span class="hidden sm:inline">แก้ไขตารางข้อมูล</span>
+                <span class="sm:hidden">แก้ไขข้อมูล</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Editor Panel (Full width on mobile) -->
+    <div id="editorPanel" class="max-w-7xl mx-auto bg-white p-3 md:p-6 rounded-xl shadow-2xl border border-blue-200 mb-8 edit-panel relative z-20">
+        <div class="flex justify-between items-center mb-3 md:mb-4 border-b pb-2">
+            <h3 class="text-base md:text-lg font-bold text-gray-800">ตารางข้อมูล</h3>
+            <button onclick="toggleEditor()" class="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+        
+        <p class="text-xs text-gray-500 mb-2 md:hidden">เลื่อนซ้าย-ขวา เพื่อดูตารางทั้งหมด</p>
+        
+        <div class="overflow-x-auto bg-gray-50 rounded-lg border border-gray-200 mb-4 max-h-[50vh] md:max-h-[400px] no-scrollbar shadow-inner">
+            <table class="min-w-max w-full text-sm">
+                <thead class="bg-gray-100 text-gray-700 sticky top-0 shadow-sm z-10 whitespace-nowrap">
+                    <tr>
+                        <th class="p-2 text-left w-32 md:w-40 sticky left-0 bg-gray-100 z-20 border-r border-gray-200">ชื่อรอบ/ปี</th>
+                        <th class="p-2 text-right w-24 bg-gray-200">กรอบ(ลบ.)</th>
+                        <th class="p-2 text-right bg-blue-50">สัญญา(โครงการ)</th>
+                        <th class="p-2 text-right bg-blue-50">สัญญา(บาท)</th>
+                        <th class="p-2 text-right w-20 bg-red-100 text-red-700">ยกเลิก</th>
+                        <th class="p-2 text-right w-20 bg-yellow-100 text-yellow-700">กำลังทำ</th>
+                        <th class="p-2 text-right w-20 bg-green-100 text-green-700">ปิดแล้ว</th>
+                        <th class="p-2 text-right text-gray-400">ยื่น(โครงการ)</th>
+                        <th class="p-2 text-right text-gray-400">อนุมัติ(โครงการ)</th>
+                        <th class="p-2 w-12 text-center">ลบ</th>
+                    </tr>
+                </thead>
+                <tbody id="editBody" class="divide-y divide-gray-200 bg-white">
+                    <!-- Javascript will populate rows -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-4">
+            <button onclick="addRow()" class="px-4 py-3 sm:py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
+                <span class="text-lg leading-none">+</span> เพิ่มแถวใหม่
+            </button>
+            
+            <div class="flex gap-2">
+                <button onclick="toggleEditor()" class="flex-1 sm:flex-none px-4 py-3 sm:py-2 text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors">ยกเลิก</button>
+                <button onclick="saveAndRender()" id="saveBtn" class="flex-[2] sm:flex-none px-6 py-3 sm:py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow transition-colors flex items-center justify-center gap-2 active:scale-95">
+                    <span>บันทึกข้อมูล</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto mt-2 md:mt-0">
+        <!-- Header: Editable & Saveable -->
+        <div class="text-center mb-6 md:mb-10 px-2">
+            <h1 id="headerTitle" class="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-800 outline-none p-1 leading-tight" contenteditable="true" onblur="handleTextSave('headerTitle', this.innerText)">สรุปการจัดสรรทุนตามรอบประกาศ</h1>
+            <p id="headerDesc" class="text-sm md:text-base text-gray-500 mt-2 outline-none p-1" contenteditable="true" onblur="handleTextSave('headerDesc', this.innerText)">ภาพรวมการยื่นข้อเสนอ, การอนุมัติ, และการทำสัญญา</p>
+        </div>
+
+        <!-- Cards Grid -->
+        <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-10">
+            <!-- Cards generated by JS -->
+            <div class="col-span-full text-center py-20 text-gray-400">
+                <div class="loader mb-2"></div>
+                <p>กำลังโหลดข้อมูล...</p>
+            </div>
+        </div>
+
+        <!-- Summary Section: Downloadable & Editable Title -->
+        <div id="summarySection" class="bg-white rounded-2xl shadow-lg p-4 sm:p-6 md:p-8 transform transition hover:scale-[1.01] duration-300 relative group border border-gray-100 mx-1 md:mx-0">
+            <!-- Download Button for Summary -->
+            <button onclick="downloadCard('summarySection', 'Summary_Total')" class="download-btn absolute top-2 right-2 md:top-4 md:right-4 text-gray-300 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-full transition-colors z-10 active:bg-blue-100" title="บันทึกรูปนี้">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+            </button>
+
+            <h2 id="summaryTitle" class="text-xl md:text-2xl font-bold text-center text-blue-800 mb-6 outline-none p-1 pr-10 md:pr-0" contenteditable="true" onblur="handleTextSave('summaryTitle', this.innerText)">สรุปรวมทั้งหมด</h2>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 text-center divide-x-0 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+                <div class="px-2 py-2 md:py-0">
+                    <p class="text-gray-500 text-xs md:text-sm mb-1">กรอบวงเงินรวม</p>
+                    <p class="text-2xl md:text-3xl font-bold text-gray-800"><span id="totalBudget">0</span></p>
+                    <p class="text-[10px] md:text-xs text-gray-400">ล้านบาท</p>
+                </div>
+                <div class="px-2 py-2 md:py-0">
+                    <p class="text-gray-500 text-xs md:text-sm mb-1">โครงการที่ยื่น</p>
+                    <p class="text-2xl md:text-3xl font-bold text-red-500"><span id="totalSubmitted">0</span></p>
+                    <p class="text-[10px] md:text-xs text-gray-400">โครงการ</p>
+                </div>
+                 <div class="px-2 py-2 md:py-0 border-t md:border-t-0 md:border-l border-gray-100">
+                    <p class="text-gray-500 text-xs md:text-sm mb-1">โครงการที่อนุมัติ</p>
+                    <p class="text-2xl md:text-3xl font-bold text-green-500"><span id="totalApproved">0</span></p>
+                    <p class="text-[10px] md:text-xs text-gray-400">โครงการ</p>
+                </div>
+                <div class="px-2 py-2 md:py-0 border-t md:border-t-0 md:border-l border-gray-100">
+                    <p class="text-gray-500 text-xs md:text-sm mb-1">โครงการที่ทำสัญญา</p>
+                    <p class="text-2xl md:text-3xl font-bold text-blue-600"><span id="totalContracted">0</span></p>
+                    <p class="text-[10px] md:text-xs text-gray-400">โครงการ</p>
+                </div>
+            </div>
+            
+             <div class="mt-6 md:mt-8 pt-6 border-t border-gray-100 relative">
+                 <p class="text-xs md:text-sm text-center text-gray-500 mb-3">ภาพรวมสถานะโครงการ (ทั้งหมด)</p>
+                 <div class="w-full bg-gray-100 rounded-full h-6 md:h-8 overflow-hidden shadow-inner flex relative">
+                    <div id="globalBarCancel" class="bg-red-500 h-full flex items-center justify-center text-white text-[10px] md:text-xs font-bold transition-all duration-1000" style="width: 0%"></div>
+                    <div id="globalBarProgress" class="bg-yellow-400 h-full flex items-center justify-center text-white text-shadow text-[10px] md:text-xs font-bold transition-all duration-1000" style="width: 0%"></div>
+                    <div id="globalBarClosed" class="bg-green-500 h-full flex items-center justify-center text-white text-[10px] md:text-xs font-bold transition-all duration-1000" style="width: 0%"></div>
+                 </div>
+                 <div class="flex justify-center flex-wrap gap-4 md:gap-6 text-[10px] md:text-xs text-gray-500 mt-3">
+                     <div class="flex items-center gap-1"><div class="w-2.5 md:w-3 h-2.5 md:h-3 rounded-full bg-red-500"></div> ยกเลิก: <span id="txtGlobalCancel" class="font-bold text-gray-700">0</span></div>
+                     <div class="flex items-center gap-1"><div class="w-2.5 md:w-3 h-2.5 md:h-3 rounded-full bg-yellow-400"></div> กำลังทำ: <span id="txtGlobalProgress" class="font-bold text-gray-700">0</span></div>
+                     <div class="flex items-center gap-1"><div class="w-2.5 md:w-3 h-2.5 md:h-3 rounded-full bg-green-500"></div> ปิดแล้ว: <span id="txtGlobalClosed" class="font-bold text-gray-700">0</span></div>
+                 </div>
+            </div>
+
+            <!-- Footer for Summary Card (Included in download) -->
+            <div class="mt-8 pt-4 border-t border-gray-100 text-center flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-gray-400 text-[10px] sm:text-xs">
+                <span>Created with</span>
+                <img src="DEF_logo3.png" alt="DEF" class="h-3 sm:h-4 mx-1 object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline'">
+                <span style="display:none" class="font-black text-gray-600 text-sm tracking-tighter">DEF</span>
+                <span>AI Canvas • Data Source: กลุ่มบริหารกองทุน</span>
+            </div>
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+    import { getFirestore, doc, onSnapshot, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+    // --- Firebase Setup ---
+    const firebaseConfig = JSON.parse(__firebase_config);
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+    // --- State ---
+    let roundsData = []; 
+    let pageConfig = {
+        headerTitle: "สรุปการจัดสรรทุนตามรอบประกาศ",
+        headerDesc: "ภาพรวมการยื่นข้อเสนอ, การอนุมัติ, และการทำสัญญา",
+        summaryTitle: "สรุปรวมทั้งหมด"
+    };
+    let currentUser = null;
+    let unsubscribeSnapshot = null;
+
+    const defaultData = [
+        { title: "2562 ครั้งที่ 1", budget: 2600, subP: 130, subA: 12079.54, appP: 11, appA: 155.65, conP: 10, conA: 146.56, statCancel: 0, statProgress: 0, statClosed: 10 },
+        { title: "2563 ครั้งที่ 1", budget: 2000, subP: 444, subA: 13454.88, appP: 54, appA: 1508.35, conP: 53, conA: 1487.59, statCancel: 1, statProgress: 2, statClosed: 50 },
+        { title: "2563 โควิด-19", budget: 1000, subP: 219, subA: 3065.15, appP: 42, appA: 393.88, conP: 39, conA: 389.55, statCancel: 0, statProgress: 0, statClosed: 39 },
+        { title: "2563 ครั้งที่ 2", budget: 1000, subP: 852, subA: 18152.24, appP: 41, appA: 588.86, conP: 41, conA: 588.86, statCancel: 2, statProgress: 5, statClosed: 34 },
+        { title: "2564 5G", budget: 500, subP: 12, subA: 499.99, appP: 9, appA: 345.11, conP: 8, conA: 324.58, statCancel: 0, statProgress: 1, statClosed: 7 },
+        { title: "2564 ครั้งที่ 1", budget: 3000, subP: 649, subA: 21746.06, appP: 46, appA: 2881.46, conP: 43, conA: 2832.49, statCancel: 1, statProgress: 10, statClosed: 32 },
+        { title: "2565 ครั้งที่ 1", budget: 2500, subP: 646, subA: 30609.40, appP: 41, appA: 2499.60, conP: 41, conA: 2499.10, statCancel: 0, statProgress: 20, statClosed: 21 },
+        { title: "2566", budget: 2200, subP: 497, subA: 20134.67, appP: 23, appA: 1444.91, conP: 19, conA: 1115.83, statCancel: 0, statProgress: 15, statClosed: 4 },
+        { title: "2567", budget: 2000, subP: 509, subA: 32167.70, appP: 24, appA: 1048.91, conP: 24, conA: 1048.91, statCancel: 0, statProgress: 24, statClosed: 0 },
+        { title: "2568", budget: 2000, subP: 314, subA: 14392.41, appP: 37, appA: 1629.03, conP: 0, conA: 0, statCancel: 0, statProgress: 0, statClosed: 0 }
+    ];
+
+    async function initAuth() {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+            await signInAnonymously(auth);
+        }
+    }
+
+    onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        if (user) {
+            document.getElementById('connectionStatus').innerText = "Online";
+            document.getElementById('connectionStatus').className = "text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-200 align-middle";
+            setupRealtimeListener(user.uid);
+        } else {
+            document.getElementById('connectionStatus').innerText = "Offline";
+        }
+    });
+
+    function setupRealtimeListener(userId) {
+        const docRef = doc(db, 'artifacts', appId, 'users', userId, 'infographics_data', 'main_data');
+        unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                roundsData = data.items || [];
+                if (data.config) pageConfig = { ...pageConfig, ...data.config };
+                
+                renderEditorTable();
+                renderAll();
+                applyConfigToDOM();
+            } else {
+                roundsData = JSON.parse(JSON.stringify(defaultData));
+                saveData(true); 
+                renderEditorTable();
+                renderAll();
+                applyConfigToDOM();
+            }
+        }, (error) => {
+            console.error("Error getting document:", error);
+            document.getElementById('connectionStatus').innerText = "Error";
+        });
+    }
+    
+    window.handleTextSave = async function(key, value) {
+        if (pageConfig[key] !== value) {
+            pageConfig[key] = value;
+            document.getElementById('saveStatus').innerText = 'กำลังบันทึก...';
+            document.getElementById('saveStatus').classList.add('text-blue-500');
+            await saveData(true); 
+            document.getElementById('saveStatus').innerText = 'บันทึกเรียบร้อย';
+            document.getElementById('saveStatus').classList.remove('text-blue-500');
+            document.getElementById('saveStatus').classList.add('text-green-500');
+            setTimeout(() => {
+                document.getElementById('saveStatus').innerText = 'การแก้ไขข้อความจะบันทึกอัตโนมัติ';
+                document.getElementById('saveStatus').classList.remove('text-green-500');
+            }, 2000);
+        }
+    }
+
+    function applyConfigToDOM() {
+        const elTitle = document.getElementById('headerTitle');
+        const elDesc = document.getElementById('headerDesc');
+        const elSum = document.getElementById('summaryTitle');
+        if (elTitle.innerText !== pageConfig.headerTitle) elTitle.innerText = pageConfig.headerTitle;
+        if (elDesc.innerText !== pageConfig.headerDesc) elDesc.innerText = pageConfig.headerDesc;
+        if (elSum.innerText !== pageConfig.summaryTitle) elSum.innerText = pageConfig.summaryTitle;
+    }
+
+    window.toggleEditor = function() {
+        document.getElementById('editorPanel').classList.toggle('active');
+        // Smooth scroll to top when opening editor on mobile
+        if(document.getElementById('editorPanel').classList.contains('active')) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }
+
+    window.addRow = function() {
+        roundsData.push({ title: "รายการใหม่", budget: 0, subP: 0, subA: 0, appP: 0, appA: 0, conP: 0, conA: 0, statCancel: 0, statProgress: 0, statClosed: 0 });
+        renderEditorTable();
+        // Scroll table to bottom
+        const tableContainer = document.querySelector('.overflow-x-auto');
+        tableContainer.scrollTop = tableContainer.scrollHeight;
+    }
+
+    window.removeRow = function(idx) {
+        if(confirm('ต้องการลบแถวนี้ใช่หรือไม่?')) {
+            roundsData.splice(idx, 1);
+            renderEditorTable();
+        }
+    }
+
+    window.updateItem = function(idx, key, value) {
+        if (key === 'title') roundsData[idx][key] = value;
+        else roundsData[idx][key] = parseFloat(value) || 0;
+    };
+
+    window.saveAndRender = async function() {
+        const btn = document.getElementById('saveBtn');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = `<div class="loader mr-2" style="border-width: 2px; width: 14px; height: 14px;"></div> บันทึก...`;
+        btn.disabled = true;
+
+        await saveData();
+        renderAll(); 
+        
+        btn.innerHTML = `<span>บันทึกแล้ว!</span>`;
+        btn.classList.replace('bg-green-600', 'bg-blue-600');
+        btn.classList.replace('hover:bg-green-700', 'hover:bg-blue-700');
+        
+        setTimeout(() => {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            btn.classList.replace('bg-blue-600', 'bg-green-600');
+            btn.classList.replace('hover:bg-blue-700', 'hover:bg-green-700');
+            // Auto close panel on mobile after save
+            if(window.innerWidth < 640) toggleEditor();
+        }, 1000);
+    }
+
+    async function saveData(silent = false) {
+        if (!currentUser) return;
+        const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'infographics_data', 'main_data');
+        try {
+            await setDoc(docRef, { items: roundsData, config: pageConfig });
+        } catch (e) {
+            console.error("Error writing document: ", e);
+            if(!silent) alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+        }
+    }
+
+    window.renderEditorTable = function() {
+        const tbody = document.getElementById('editBody');
+        tbody.innerHTML = '';
+        
+        roundsData.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="p-1 sticky left-0 bg-white z-10 border-r border-gray-200 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.05)]">
+                    <input type="text" value="${item.title}" onchange="updateItem(${idx}, 'title', this.value)" class="bg-transparent border-0 focus:ring-2 focus:ring-blue-500 rounded p-1 w-full text-sm">
+                </td>
+                <td class="p-1"><input type="number" value="${item.budget}" class="bg-gray-100 border-0" onchange="updateItem(${idx}, 'budget', this.value)"></td>
+                <td class="p-1"><input type="number" value="${item.conP}" class="bg-blue-50 font-bold border-0" onchange="updateItem(${idx}, 'conP', this.value)"></td>
+                <td class="p-1"><input type="number" value="${item.conA}" class="bg-blue-50 border-0" onchange="updateItem(${idx}, 'conA', this.value)"></td>
+                
+                <td class="p-1"><input type="number" value="${item.statCancel}" class="bg-red-50 text-red-600 border-0" onchange="updateItem(${idx}, 'statCancel', this.value)"></td>
+                <td class="p-1"><input type="number" value="${item.statProgress}" class="bg-yellow-50 text-yellow-600 border-0" onchange="updateItem(${idx}, 'statProgress', this.value)"></td>
+                <td class="p-1"><input type="number" value="${item.statClosed}" class="bg-green-50 text-green-600 border-0" onchange="updateItem(${idx}, 'statClosed', this.value)"></td>
+                
+                <td class="p-1"><input type="number" value="${item.subP}" class="bg-gray-50 text-gray-500 border-0" onchange="updateItem(${idx}, 'subP', this.value)"></td>
+                <td class="p-1"><input type="number" value="${item.appP}" class="bg-gray-50 text-gray-500 border-0" onchange="updateItem(${idx}, 'appP', this.value)"></td>
+                <td class="p-1 text-center">
+                     <button onclick="removeRow(${idx})" class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-400 hover:text-white hover:bg-red-500 mx-auto transition-colors" title="ลบแถว">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                     </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    window.renderAll = function() {
+        const container = document.getElementById('cardsContainer');
+        container.innerHTML = '';
+
+        if (roundsData.length === 0) {
+            container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400">ไม่มีข้อมูล (กด "แก้ไขข้อมูล" เพื่อเพิ่ม)</div>`;
+        }
+
+        let tBudget = 0, tSubP = 0, tAppP = 0, tConP = 0, tAppA = 0, tConA = 0;
+        let tCancel = 0, tProgress = 0, tClosed = 0;
+
+        roundsData.forEach((item, idx) => {
+            tBudget += item.budget || 0;
+            tSubP += item.subP || 0;
+            tAppP += item.appP || 0;
+            tConP += item.conP || 0;
+            tAppA += item.appA || 0;
+            tConA += item.conA || 0;
+            tCancel += item.statCancel || 0;
+            tProgress += item.statProgress || 0;
+            tClosed += item.statClosed || 0;
+
+            const totalStatus = (item.statCancel||0) + (item.statProgress||0) + (item.statClosed||0);
+            const pctCancel = totalStatus > 0 ? (item.statCancel / totalStatus) * 100 : 0;
+            const pctProgress = totalStatus > 0 ? (item.statProgress / totalStatus) * 100 : 0;
+            const pctClosed = totalStatus > 0 ? (item.statClosed / totalStatus) * 100 : 0;
+            const approvedBudgetPct = item.budget > 0 ? ((item.appA||0) / item.budget) * 100 : 0;
+
+            const card = `
+                <div id="card-${idx}" class="relative bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] p-4 md:p-6 flex flex-col justify-between border border-gray-100">
+                    <button onclick="downloadCard('card-${idx}', '${item.title}')" class="download-btn absolute top-2 right-2 md:top-3 md:right-3 text-gray-300 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-full transition-colors z-10 active:bg-blue-100" title="บันทึกรูปนี้">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                    </button>
+
+                    <div>
+                        <div class="flex justify-between items-start mb-4 pr-10">
+                            <div>
+                                <h3 class="font-bold text-lg md:text-xl text-gray-800 leading-tight">${item.title}</h3>
+                                <p class="text-xs md:text-sm text-gray-400 mt-0.5">กรอบ: ${formatNum(item.budget)} ลบ.</p>
+                            </div>
+                            <div class="bg-blue-50 text-blue-600 text-[10px] md:text-xs font-bold px-2 py-1 rounded h-fit text-right whitespace-nowrap border border-blue-100">
+                                สัดส่วนวงเงินอนุมัติ ${approvedBudgetPct.toFixed(1)}%
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-2.5 text-xs md:text-sm">
+                            <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                <span class="text-gray-500">ยื่นข้อเสนอ:</span>
+                                <div class="text-right">
+                                    <span class="font-bold text-gray-800">${(item.subP||0).toLocaleString()} โครงการ</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center bg-green-50/50 p-2 rounded">
+                                <span class="text-gray-600">อนุมัติ:</span>
+                                <div class="text-right">
+                                    <span class="font-bold text-green-600">${(item.appP||0).toLocaleString()} โครงการ</span>
+                                    <div class="text-[10px] md:text-xs text-green-500 font-medium">${item.appA > 0 ? formatNum(item.appA) + ' ลบ.' : '-'}</div>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center bg-blue-50/50 p-2 rounded border border-blue-100/50">
+                                <span class="text-blue-800 font-medium">ทำสัญญา:</span>
+                                <div class="text-right">
+                                    <span class="font-bold text-blue-600">${item.conP > 0 ? item.conP.toLocaleString() : '-'} โครงการ</span>
+                                    <div class="text-[10px] md:text-xs text-blue-500 font-medium">${item.conA > 0 ? formatNum(item.conA) + ' ลบ.' : '-'}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-5 pt-3 border-t border-gray-100">
+                             <div class="flex justify-between items-center text-[10px] md:text-xs text-gray-500 mb-2">
+                                <span>สถานะโครงการ (สัญญา)</span>
+                                <span class="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 font-medium">${totalStatus.toLocaleString()} โครงการ</span>
+                             </div>
+                             
+                             <div class="w-full h-3 md:h-4 bg-gray-100 rounded-full flex overflow-hidden relative shadow-inner">
+                                <div class="bg-red-500 h-full" style="width: ${pctCancel}%"></div>
+                                <div class="bg-yellow-400 h-full" style="width: ${pctProgress}%"></div>
+                                <div class="bg-green-500 h-full" style="width: ${pctClosed}%"></div>
+                             </div>
+
+                             <div class="flex justify-between items-center mt-2 text-[9px] md:text-[10px] text-gray-400">
+                                <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-red-500"></div>ยกเลิก ${item.statCancel||0}</div>
+                                <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-yellow-400"></div>ทำ ${item.statProgress||0}</div>
+                                <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-green-500"></div>ปิด ${item.statClosed||0}</div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += card;
+        });
+
+        document.getElementById('totalBudget').innerText = formatNum(tBudget);
+        document.getElementById('totalSubmitted').innerText = tSubP.toLocaleString();
+        document.getElementById('totalApproved').innerText = tAppP.toLocaleString();
+        document.getElementById('totalContracted').innerText = tConP.toLocaleString();
+
+        const tStatus = tCancel + tProgress + tClosed;
+        const gpCancel = tStatus > 0 ? (tCancel/tStatus)*100 : 0;
+        const gpProgress = tStatus > 0 ? (tProgress/tStatus)*100 : 0;
+        const gpClosed = tStatus > 0 ? (tClosed/tStatus)*100 : 0;
+
+        document.getElementById('globalBarCancel').style.width = `${gpCancel}%`;
+        document.getElementById('globalBarProgress').style.width = `${gpProgress}%`;
+        document.getElementById('globalBarClosed').style.width = `${gpClosed}%`;
+        
+        document.getElementById('globalBarCancel').innerText = gpCancel > 10 ? `${gpCancel.toFixed(0)}%` : '';
+        document.getElementById('globalBarProgress').innerText = gpProgress > 10 ? `${gpProgress.toFixed(0)}%` : '';
+        document.getElementById('globalBarClosed').innerText = gpClosed > 10 ? `${gpClosed.toFixed(0)}%` : '';
+
+        document.getElementById('txtGlobalCancel').innerText = tCancel.toLocaleString();
+        document.getElementById('txtGlobalProgress').innerText = tProgress.toLocaleString();
+        document.getElementById('txtGlobalClosed').innerText = tClosed.toLocaleString();
+    }
+
+    window.downloadCard = function(id, title) {
+        const element = document.getElementById(id);
+        const btn = element.querySelector('.download-btn');
+        btn.style.opacity = '0';
+        
+        // Brief timeout to ensure UI updates before capturing
+        setTimeout(() => {
+            html2canvas(element, { scale: 3, backgroundColor: "#ffffff", logging: false, useCORS: true }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `Infographic-${title}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                btn.style.opacity = '1';
+            }).catch(err => {
+                console.error(err);
+                btn.style.opacity = '1';
+            });
+        }, 100);
+    }
+
+    function formatNum(num) {
+        return (num || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
+    }
+
+    initAuth();
+
+</script>
+</body>
+</html>
