@@ -65,7 +65,7 @@
     <div class="max-w-7xl mx-auto mb-4 md:mb-6 flex flex-col md:flex-row justify-between items-start md:items-center sticky top-0 bg-gray-100/95 backdrop-blur z-30 py-3 gap-3 md:gap-0 border-b md:border-none border-gray-200">
         <div class="w-full flex justify-between items-center">
             <h2 class="text-lg md:text-xl font-bold text-gray-800 flex flex-col md:flex-row md:items-center gap-1 md:gap-2">
-                <div>InfoApp <span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200 align-middle" id="connectionStatus">รอการเชื่อมต่อ...</span></div>
+                <div>InfoApp <span class="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-200 align-middle" id="connectionStatus">พร้อมใช้งาน (Local)</span></div>
                 <span class="text-xs text-gray-400 font-normal hidden md:inline" id="saveStatus">การแก้ไขข้อความจะบันทึกอัตโนมัติ</span>
             </h2>
             <button onclick="toggleEditor()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 md:py-2 px-4 rounded-full shadow-lg flex items-center gap-2 text-sm transition-transform transform active:scale-95">
@@ -198,27 +198,15 @@
         </div>
     </div>
 
-<script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-    import { getFirestore, doc, onSnapshot, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-
-    // --- Firebase Setup ---
-    const firebaseConfig = JSON.parse(__firebase_config);
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-    // --- State ---
+<script>
+    // --- State & Local Storage Setup (No Firebase needed) ---
+    const LOCAL_STORAGE_KEY = 'infographics_funding_data';
     let roundsData = []; 
     let pageConfig = {
         headerTitle: "สรุปการจัดสรรทุนตามรอบประกาศ",
         headerDesc: "ภาพรวมการยื่นข้อเสนอ, การอนุมัติ, และการทำสัญญา",
         summaryTitle: "สรุปรวมทั้งหมด"
     };
-    let currentUser = null;
-    let unsubscribeSnapshot = null;
 
     const defaultData = [
         { title: "2562 ครั้งที่ 1", budget: 2600, subP: 130, subA: 12079.54, appP: 11, appA: 155.65, conP: 10, conA: 146.56, statCancel: 0, statProgress: 0, statClosed: 10 },
@@ -233,47 +221,25 @@
         { title: "2568", budget: 2000, subP: 314, subA: 14392.41, appP: 37, appA: 1629.03, conP: 0, conA: 0, statCancel: 0, statProgress: 0, statClosed: 0 }
     ];
 
-    async function initAuth() {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-            await signInAnonymously(auth);
-        }
-    }
-
-    onAuthStateChanged(auth, (user) => {
-        currentUser = user;
-        if (user) {
-            document.getElementById('connectionStatus').innerText = "Online";
-            document.getElementById('connectionStatus').className = "text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-200 align-middle";
-            setupRealtimeListener(user.uid);
-        } else {
-            document.getElementById('connectionStatus').innerText = "Offline";
-        }
-    });
-
-    function setupRealtimeListener(userId) {
-        const docRef = doc(db, 'artifacts', appId, 'users', userId, 'infographics_data', 'main_data');
-        unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
+    function initData() {
+        const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (savedData) {
+            try {
+                const data = JSON.parse(savedData);
                 roundsData = data.items || [];
                 if (data.config) pageConfig = { ...pageConfig, ...data.config };
-                
-                renderEditorTable();
-                renderAll();
-                applyConfigToDOM();
-            } else {
+            } catch (e) {
+                console.error("Error parsing data, loading defaults", e);
                 roundsData = JSON.parse(JSON.stringify(defaultData));
-                saveData(true); 
-                renderEditorTable();
-                renderAll();
-                applyConfigToDOM();
             }
-        }, (error) => {
-            console.error("Error getting document:", error);
-            document.getElementById('connectionStatus').innerText = "Error";
-        });
+        } else {
+            roundsData = JSON.parse(JSON.stringify(defaultData));
+            saveData(true);
+        }
+
+        renderEditorTable();
+        renderAll();
+        applyConfigToDOM();
     }
     
     window.handleTextSave = async function(key, value) {
@@ -353,12 +319,10 @@
     }
 
     async function saveData(silent = false) {
-        if (!currentUser) return;
-        const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'infographics_data', 'main_data');
         try {
-            await setDoc(docRef, { items: roundsData, config: pageConfig });
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ items: roundsData, config: pageConfig }));
         } catch (e) {
-            console.error("Error writing document: ", e);
+            console.error("Error saving data: ", e);
             if(!silent) alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
         }
     }
@@ -534,7 +498,8 @@
         return (num || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 });
     }
 
-    initAuth();
+    // Initialize application data
+    initData();
 
 </script>
 </body>
