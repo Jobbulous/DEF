@@ -61,6 +61,19 @@
 </head>
 <body class="bg-gray-100 p-2 sm:p-4 md:p-6 lg:p-8 pb-20">
 
+    <!-- Line Browser Warning Banner -->
+    <div id="lineWarning" class="hidden max-w-7xl mx-auto mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded shadow-sm relative z-40">
+        <div class="flex items-start">
+            <div class="py-1">
+                <svg class="fill-current h-6 w-6 text-yellow-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z"/></svg>
+            </div>
+            <div>
+                <p class="font-bold text-sm">คุณกำลังเปิดผ่านแอป LINE</p>
+                <p class="text-xs mt-1">ฟังก์ชันบางอย่างเช่น "การบันทึกข้อมูล" อาจทำงานไม่สมบูรณ์ แนะนำให้กดปุ่ม ⋯ (มุมขวาบน) แล้วเลือก <strong>"เปิดในเบราว์เซอร์เริ่มต้น"</strong> (Safari/Chrome) เพื่อการใช้งานที่สมบูรณ์ครับ</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Toolbar -->
     <div class="max-w-7xl mx-auto mb-4 md:mb-6 flex flex-col md:flex-row justify-between items-start md:items-center sticky top-0 bg-gray-100/95 backdrop-blur z-30 py-3 gap-3 md:gap-0 border-b md:border-none border-gray-200">
         <div class="w-full flex justify-between items-center">
@@ -221,8 +234,23 @@
         { title: "2568", budget: 2000, subP: 314, subA: 14392.41, appP: 37, appA: 1629.03, conP: 0, conA: 0, statCancel: 0, statProgress: 0, statClosed: 0 }
     ];
 
+    function isLineBrowser() {
+        return /Line/i.test(navigator.userAgent);
+    }
+
     function initData() {
-        const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (isLineBrowser()) {
+            const warningEl = document.getElementById('lineWarning');
+            if(warningEl) warningEl.classList.remove('hidden');
+        }
+
+        let savedData = null;
+        try {
+            savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+        } catch (e) {
+            console.warn("Storage restricted (likely in-app browser). Using defaults.", e);
+        }
+
         if (savedData) {
             try {
                 const data = JSON.parse(savedData);
@@ -323,7 +351,7 @@
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({ items: roundsData, config: pageConfig }));
         } catch (e) {
             console.error("Error saving data: ", e);
-            if(!silent) alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+            if(!silent) alert("ไม่สามารถบันทึกข้อมูลได้ (หากเปิดในแอป LINE แนะนำให้กดเปิดในเบราว์เซอร์ Safari/Chrome ก่อนครับ)");
         }
     }
 
